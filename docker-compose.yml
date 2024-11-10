@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+
+  php:
+    build:
+      dockerfile: .docker/php/Dockerfile
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html:delegated
+      - .docker/php/php.ini:/usr/local/etc/php/conf.d/php.ini:delegated
+      - .docker/php/error.log:/var/log/error.log:delegated
+    restart: unless-stopped
+
+  nginx:
+    platform: linux/amd64
+    image: nginx:1.19.4-alpine
+    volumes:
+      - ./public:/var/www/html/public:delegated
+      - ./.docker/nginx/default.conf:/etc/nginx/templates/default.conf.template:delegated
+      - ./.docker/nginx/access.log:/var/log/nginx/access.log:delegated
+      - ./.docker/nginx/error.log:/var/log/nginx/error.log:delegated
+      - ./.docker/nginx/certs:/etc/letsencrypt
+    environment:
+      - NGINX_PHP_HOST=php
+      - NGINX_SERVER_NAME=local
+      - UPLOAD_MAX_FILESIZE=10
+    ports:
+      - 80:80 # http/local
+      - 443:443 # https/prod
+    restart: always
+
+  mysql:
+    image: mysql:8.0.29
+    environment:
+      - MYSQL_DATABASE=${DB_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./.docker/mysql/data:/var/lib/mysql:cached
+    restart: always
+
+  adminer:
+    image: adminer
+    environment:
+      - ADMINER_USERNAME=${DB_USERNAME}
+      - ADMINER_PASSWORD=${DB_PASSWORD}
+      - ADMINER_DEFAULT_SERVER=${DB_HOST}
+    ports:
+      - "1000:8080"
+    restart: on-failure
+
+  node:
+    build:
+      dockerfile: .docker/node/Dockerfile
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    command: [ "tail", "-f", "/dev/null" ]
+    restart: unless-stopped
